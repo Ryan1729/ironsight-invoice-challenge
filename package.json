@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "elm-init": "elm init",
+    "start": "elm reactor",
+    "build": "elm make src/Main.elm",
+    "build-release": "elm make src/Main.elm --optimize --output=elm.js"
   },
   "author": "Ryan Wiedemann",
   "license": "ISC",
