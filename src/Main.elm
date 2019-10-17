@@ -18,7 +18,7 @@ main =
 type alias Model =
     { description : String
     , items : List LineItem
-    , taxRate : Float
+    , taxRate : Field Float
     }
 
 
@@ -26,7 +26,7 @@ init : flags -> ( Model, Cmd Msg )
 init _ =
     ( { description = ""
       , items = [ defaultLineItem ]
-      , taxRate = 0.0
+      , taxRate = fieldFromString String.toFloat "0.0"
       }
     , Cmd.none
     )
@@ -35,8 +35,15 @@ init _ =
 getTotal : Model -> Cents
 getTotal model =
     case getSubtotal model.items of
-        Cents cents ->
-            toFloat cents * model.taxRate |> round |> Cents
+        Cents intCents ->
+            let
+                cents =
+                    toFloat intCents
+
+                taxTotal =
+                    (model.taxRate |> fieldWithDefault 0) * cents
+            in
+            taxTotal + cents |> round |> Cents
 
 
 type Cents
@@ -99,6 +106,22 @@ getSubtotal items =
         items
 
 
+type Field a
+    = Field (Maybe a) String
+
+
+fieldToString (Field _ s) =
+    s
+
+
+fieldWithDefault default (Field parsed _) =
+    Maybe.withDefault default parsed
+
+
+fieldFromString mapper s =
+    Field (mapper s) s
+
+
 
 -- UPDATE
 
@@ -123,7 +146,7 @@ update msg model =
             ( { model | items = List.take i model.items ++ List.drop (i + 1) model.items }, Cmd.none )
 
         SetTaxRate str ->
-            ( String.toFloat str |> Maybe.map (\taxRate -> { model | taxRate = taxRate }) |> Maybe.withDefault model, Cmd.none )
+            ( { model | taxRate = fieldFromString String.toFloat str }, Cmd.none )
 
 
 
@@ -135,12 +158,11 @@ view model =
     div []
         [ input [ placeholder "Invoice Description", value model.description, onInput SetInvoiceDescription ]
             []
-        , button [ onClick AddLineItem ] [ text "Add Line Item" ]
-        , div [] (List.indexedMap viewLineItem model.items)
+        , button [ onClick AddLineItem ] [ text "Add Line Item" ] :: List.indexedMap viewLineItem model.items |> div []
         , div []
             [ text "Subtotal:", model.items |> getSubtotal |> displayAsDollars |> text ]
         , input
-            [ placeholder "Tax Rate", model.taxRate |> String.fromFloat |> value, onInput SetTaxRate ]
+            [ placeholder "Tax Rate", model.taxRate |> fieldToString |> value, onInput SetTaxRate ]
             []
         , div [] [ text "Total:", model |> getTotal |> displayAsDollars |> text ]
         ]
