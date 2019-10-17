@@ -268,7 +268,8 @@ view model =
         , button [ onClick AddLineItem ] [ text "Add Line Item" ] :: List.indexedMap viewLineItem model.items |> div []
         , div []
             [ text "Subtotal:", model.items |> getSubtotal |> displayAsDollars |> text ]
-        , fieldInput "Tax Rate" model.taxRate SetTaxRate
+        , div []
+            [ text "Tax Rate:", fieldInput "enter tax rate" model.taxRate SetTaxRate ]
         , div [] [ text "Total:", model |> getTotal |> displayAsDollars |> text ]
         ]
 
