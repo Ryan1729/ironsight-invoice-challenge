@@ -2,6 +2,8 @@
 
 This is a small project done as part of the process of interviewing at [IronSight](ironsight.ca).
 
+[Live version](https://ryan1729.github.io/ironsight-invoice-challenge/)
+
 ### Assumptions made
 * all users are using dollars of some sort rather than some other currency
 * browser floating point accuracy is sufficient for this purpose, (AKA users won't care about rounding to the nearest penny)
