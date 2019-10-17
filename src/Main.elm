@@ -165,7 +165,7 @@ defaultLineItem : LineItem
 defaultLineItem =
     { description = ""
     , perUnit = fieldFromString centsFromDollarString defaultDollarString
-    , quantity = fieldFromString String.toInt "0"
+    , quantity = fieldFromString String.toInt "1"
     }
 
 
