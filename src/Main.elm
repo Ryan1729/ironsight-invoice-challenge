@@ -1,6 +1,7 @@
 module Main exposing (Model, Msg(..), init, main, update, view)
 
 import Browser
+import File.Download as Download
 import Html exposing (Attribute, Html, button, div, text)
 import Html.Attributes
 import Html.Events exposing (onClick, onInput)
@@ -30,6 +31,53 @@ init _ =
       }
     , Cmd.none
     )
+
+
+toCsv : Model -> String
+toCsv model =
+    let
+        headings =
+            "description, cost per unit, units"
+
+        itemLines =
+            List.map toCsvLine model.items
+
+        subtotal =
+            String.join "," [ "Subtotal", model.items |> getSubtotal |> displayAsDollars ]
+
+        -- we could abort the download if any of the fields have invalid data but we are assuing that the current way is okay
+        taxRate =
+            String.join "," [ "Tax Rate", model.taxRate |> fieldWithDefault 0 |> String.fromFloat ]
+
+        total =
+            String.join "," [ "Total", model |> getTotal |> displayAsDollars ]
+    in
+    String.join "\n" (headings :: itemLines ++ [ subtotal, taxRate, total ])
+
+
+toCsvLine : LineItem -> String
+toCsvLine item =
+    let
+        description =
+            -- what we should probably do if this was "for real" is to count the amount
+            -- of "\"" and make them balanced if they are unbalanced.
+            -- That, or just diallow typing quotes in the description entirely.
+            if
+                String.contains "," item.description
+                    && not (String.startsWith "\"" item.description && String.endsWith "\"" item.description)
+            then
+                String.concat [ "\"", item.description, "\"" ]
+
+            else
+                item.description
+
+        perUnit =
+            item.perUnit |> fieldWithDefault (Cents 0) |> displayAsDollars
+
+        quantity =
+            item.quantity |> fieldWithDefault 0 |> String.fromInt
+    in
+    String.join "," [ description, perUnit, quantity ]
 
 
 getTotal : Model -> Cents
@@ -166,6 +214,7 @@ type Msg
     | SetPerUnit Int String
     | SetQuantity Int String
     | SetTaxRate String
+    | DownloadCsv
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -192,6 +241,18 @@ update msg model =
         SetTaxRate str ->
             ( { model | taxRate = fieldFromString String.toFloat str }, Cmd.none )
 
+        DownloadCsv ->
+            ( model, downloadCsv model )
+
+
+downloadCsv : Model -> Cmd Msg
+downloadCsv model =
+    let
+        filename =
+            String.concat [ String.map sanitizeForFilename model.description, ".csv" ]
+    in
+    Download.string filename "text/plain" (toCsv model)
+
 
 
 -- VIEW
@@ -200,7 +261,10 @@ update msg model =
 view : Model -> Html Msg
 view model =
     div []
-        [ input "Invoice Description" model.description SetInvoiceDescription
+        [ div []
+            [ input "Invoice Description" model.description SetInvoiceDescription
+            , button [ onClick DownloadCsv ] [ text "Download CSV" ]
+            ]
         , button [ onClick AddLineItem ] [ text "Add Line Item" ] :: List.indexedMap viewLineItem model.items |> div []
         , div []
             [ text "Subtotal:", model.items |> getSubtotal |> displayAsDollars |> text ]
@@ -249,6 +313,52 @@ mapAt mapper i list =
 
         Nothing ->
             list
+
+
+sanitizeForFilename c =
+    case c of
+        ' ' ->
+            '_'
+
+        '\n' ->
+            '_'
+
+        '\t' ->
+            '_'
+
+        -- carriage return
+        '\u{000D}' ->
+            '_'
+
+        '<' ->
+            '_'
+
+        '>' ->
+            '_'
+
+        '"' ->
+            '_'
+
+        '/' ->
+            '_'
+
+        '\\' ->
+            '_'
+
+        '|' ->
+            '_'
+
+        '?' ->
+            '_'
+
+        '*' ->
+            '_'
+
+        '.' ->
+            '_'
+
+        other ->
+            other
 
 
 

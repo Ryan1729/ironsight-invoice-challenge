@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "elm-init": "elm init",
+    "elm-install": "elm install",
     "start": "elm reactor",
     "build": "elm make src/Main.elm",
     "build-release": "elm make src/Main.elm --optimize --output=elm.js"
