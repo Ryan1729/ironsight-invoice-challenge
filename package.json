@@ -8,7 +8,7 @@
     "elm-install": "elm install",
     "start": "elm reactor",
     "build": "elm make src/Main.elm",
-    "build-release": "elm make src/Main.elm --optimize --output=elm.js"
+    "build-release": "elm make src/Main.elm --optimize --output=./docs/elm.js"
   },
   "author": "Ryan Wiedemann",
   "license": "ISC",
