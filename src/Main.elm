@@ -1,8 +1,8 @@
 module Main exposing (Model, Msg(..), init, main, update, view)
 
 import Browser
-import Html exposing (Attribute, Html, button, div, input, text)
-import Html.Attributes exposing (placeholder, value)
+import Html exposing (Attribute, Html, button, div, text)
+import Html.Attributes
 import Html.Events exposing (onClick, onInput)
 
 
@@ -54,14 +54,18 @@ add (Cents c1) (Cents c2) =
     Cents (c1 + c2)
 
 
-times (Cents c1) amount =
-    Cents (c1 * amount)
+times amount (Cents c1) =
+    Cents (amount * c1)
+
+
+defaultDollarString =
+    "$0.00"
 
 
 displayAsDollars : Cents -> String
 displayAsDollars (Cents totalCents) =
     if totalCents < 0 then
-        "$0.00"
+        defaultDollarString
 
     else
         let
@@ -81,18 +85,39 @@ displayAsDollars (Cents totalCents) =
         String.concat [ "$", dollars |> String.fromInt, ".", centsPrefix, cents |> String.fromInt ]
 
 
+centsFromDollarString : String -> Maybe Cents
+centsFromDollarString s =
+    let
+        trimmed =
+            if String.startsWith "$" s then
+                String.dropLeft 1 s
+
+            else
+                s
+
+        parsed =
+            String.toFloat trimmed
+    in
+    Maybe.map
+        (\dollars ->
+            -- This could introduce some loss of precision, but we'll assume it's okay.
+            dollars * 100 |> round |> Cents
+        )
+        parsed
+
+
 type alias LineItem =
     { description : String
-    , perUnit : Cents
-    , quantity : Int
+    , perUnit : Field Cents
+    , quantity : Field Int
     }
 
 
 defaultLineItem : LineItem
 defaultLineItem =
     { description = ""
-    , perUnit = Cents 0
-    , quantity = 0
+    , perUnit = fieldFromString centsFromDollarString defaultDollarString
+    , quantity = fieldFromString String.toInt "0"
     }
 
 
@@ -100,7 +125,14 @@ getSubtotal : List LineItem -> Cents
 getSubtotal items =
     List.foldl
         (\item acc ->
-            times item.perUnit item.quantity |> add acc
+            let
+                perUnit =
+                    item.perUnit |> fieldWithDefault (Cents 0)
+
+                quantity =
+                    item.quantity |> fieldWithDefault 0
+            in
+            perUnit |> times quantity |> add acc
         )
         (Cents 0)
         items
@@ -130,6 +162,9 @@ type Msg
     = SetInvoiceDescription String
     | AddLineItem
     | RemoveLineItem Int
+    | SetItemDescription Int String
+    | SetPerUnit Int String
+    | SetQuantity Int String
     | SetTaxRate String
 
 
@@ -143,7 +178,16 @@ update msg model =
             ( { model | items = defaultLineItem :: model.items }, Cmd.none )
 
         RemoveLineItem i ->
-            ( { model | items = List.take i model.items ++ List.drop (i + 1) model.items }, Cmd.none )
+            ( { model | items = removeAt i model.items }, Cmd.none )
+
+        SetItemDescription i str ->
+            ( { model | items = mapAt (\item -> { item | description = str }) i model.items }, Cmd.none )
+
+        SetPerUnit i str ->
+            ( { model | items = mapAt (\item -> { item | perUnit = fieldFromString centsFromDollarString str }) i model.items }, Cmd.none )
+
+        SetQuantity i str ->
+            ( { model | items = mapAt (\item -> { item | quantity = fieldFromString String.toInt str }) i model.items }, Cmd.none )
 
         SetTaxRate str ->
             ( { model | taxRate = fieldFromString String.toFloat str }, Cmd.none )
@@ -156,14 +200,11 @@ update msg model =
 view : Model -> Html Msg
 view model =
     div []
-        [ input [ placeholder "Invoice Description", value model.description, onInput SetInvoiceDescription ]
-            []
+        [ input "Invoice Description" model.description SetInvoiceDescription
         , button [ onClick AddLineItem ] [ text "Add Line Item" ] :: List.indexedMap viewLineItem model.items |> div []
         , div []
             [ text "Subtotal:", model.items |> getSubtotal |> displayAsDollars |> text ]
-        , input
-            [ placeholder "Tax Rate", model.taxRate |> fieldToString |> value, onInput SetTaxRate ]
-            []
+        , fieldInput "Tax Rate" model.taxRate SetTaxRate
         , div [] [ text "Total:", model |> getTotal |> displayAsDollars |> text ]
         ]
 
@@ -171,11 +212,43 @@ view model =
 viewLineItem : Int -> LineItem -> Html Msg
 viewLineItem i item =
     div []
-        [ text item.description
-        , item.perUnit |> displayAsDollars |> text
-        , item.quantity |> String.fromInt |> text
+        [ input "Item Description" item.description (SetItemDescription i)
+        , fieldInput "Per Unit" item.perUnit (SetPerUnit i)
+        , fieldInput "Quantity" item.quantity (SetQuantity i)
         , button [ i |> RemoveLineItem |> onClick ] [ text "Remove Line Item" ]
         ]
+
+
+fieldInput placeholder value msg =
+    input placeholder (fieldToString value) msg
+
+
+input placeholder value msg =
+    Html.input [ Html.Attributes.placeholder placeholder, Html.Attributes.value value, onInput msg ] []
+
+
+
+-- Utils
+
+
+removeAt i list =
+    List.take i list ++ List.drop (i + 1) list
+
+
+mapAt mapper i list =
+    let
+        secondPart =
+            List.drop i list
+
+        mapped =
+            List.head secondPart |> Maybe.map mapper
+    in
+    case mapped of
+        Just m ->
+            List.take i list ++ (m :: List.drop 1 secondPart)
+
+        Nothing ->
+            list
 
 
 
